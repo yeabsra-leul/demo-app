@@ -27,7 +27,7 @@ export default function ComicSlide({ comic, isActive }: ComicSlideProps) {
   }
 
   return (
-    <div className="relative w-full h-full bg-black flex flex-col items-center justify-center overflow-hidden">
+    <div className="relative w-full h-full bg-black flex flex-col items-center justify-center overflow-hidden pointer-events-none">
       {/* Comic Image */}
       <div className="relative w-full h-full flex items-center justify-center">
         <Image
