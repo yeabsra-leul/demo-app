@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { Swiper, SwiperSlide, SwiperClass } from "swiper/react";
 import { Mousewheel, Keyboard } from "swiper/modules";
 import ComicSlide from "@/components/comic-slide";
@@ -16,42 +16,50 @@ export default function Home() {
   const swiperRef = useRef<SwiperRef | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isInfoButtonVisible, setIsInfoButtonVisible] = useState(false);
+  const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  /* --------------------------------------------------------------
-     Hide the button while a transition is happening – keeps the UI
-     clean when the user flicks quickly.
-  -------------------------------------------------------------- */
-  const handleSlideChangeTransitionStart = useCallback(() => {
+  // Observe slide visibility
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const index = Number(entry.target.getAttribute("data-index"));
+          // Check if the entry corresponds to the currently active slide
+          if (index === activeIndex) {
+            // If slide is more than half out of view
+            if (entry.intersectionRatio <= 0.5) {
+              setIsInfoButtonVisible(true);
+            } else {
+              setIsInfoButtonVisible(false);
+            }
+          }
+        });
+      },
+      {
+        threshold: Array.from({ length: 21 }, (_, i) => i * 0.05), // 0 → 1 in 0.05 increments
+      }
+    );
+
+    // Observe all slides
+    slideRefs.current.forEach((slide) => {
+      if (slide) observer.observe(slide);
+    });
+
+    return () => observer.disconnect();
+  }, [activeIndex]);
+
+    const handleSlideChangeTransitionStart = useCallback(() => {
     setIsInfoButtonVisible(false);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
   }, []);
 
   const handleSlideChangeTransitionEnd = useCallback(() => {
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(
-      () => setIsInfoButtonVisible(true),
-      300
-    );
-  }, []);
-
-  /* --------------------------------------------------------------
-     The **real** logic – called on every frame while swiping.
-     `swiper.progress` → 0 … 1 (overall progress)
-     `slide.progress` → -1 (fully out) … 0 (fully in) … 1 (fully out)
-  -------------------------------------------------------------- */
-  const handleProgress = useCallback((swiper: SwiperClass) => {
-    // Overall progress of the entire swiper (0 = first slide, 1 = last slide)
-    const progress = swiper.progress; // 0 to 1
-
-    // Calculate how far we are *between* the current and next slide
-    // When progress = 0   → current slide fully visible
-    // When progress = 0.5 → halfway to the next slide
-    // When progress = 1   → next slide fully visible
-
-    const shouldShow = progress >= 0.5; // Show when 50%+ toward the next slide
-
-    setIsInfoButtonVisible(shouldShow);
+    // if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    // debounceTimerRef.current = setTimeout(
+    //   () => setIsInfoButtonVisible(true),
+    //   200
+    // );
+    setTimeout(() => setIsInfoButtonVisible(true), 250);
   }, []);
 
   return (
@@ -60,21 +68,27 @@ export default function Home() {
         ref={swiperRef}
         direction="vertical"
         slidesPerView={1}
-        mousewheel={true}
-        keyboard={true}
+        mousewheel
+        keyboard
         modules={[Mousewheel, Keyboard]}
-        onSlideChange={(s) => setActiveIndex(s.activeIndex)}
-        onSlideChangeTransitionStart={handleSlideChangeTransitionStart}
-        onSlideChangeTransitionEnd={handleSlideChangeTransitionEnd}
-        onProgress={handleProgress}
+        onSlideChange={(swiper) => setActiveIndex(swiper.activeIndex)}
+        onSlideNextTransitionStart={handleSlideChangeTransitionStart}
+        onSlideNextTransitionEnd={handleSlideChangeTransitionEnd}
+        onSetTranslate={(tr)=>console.log("translateeee",tr)}
         className="w-full h-full"
       >
-        {mockComics.map((comic) => (
+        {mockComics.map((comic, index) => (
           <SwiperSlide key={comic.id}>
-            <ComicSlide
-              comic={comic}
-              isActive={mockComics.indexOf(comic) === activeIndex}
-            />
+            <div
+              ref={(el) => { slideRefs.current[index] = el; }}
+              data-index={index}
+              className="h-full w-full"
+            >
+              <ComicSlide
+                comic={comic}
+                isActive={index === activeIndex}
+              />
+            </div>
           </SwiperSlide>
         ))}
       </Swiper>
@@ -87,7 +101,7 @@ export default function Home() {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
           >
             <AnimatedInfoButton />
           </motion.div>
